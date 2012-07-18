@@ -1,6 +1,6 @@
-//    Backbone XMPP PubSub Storage v0.1
+//    Backbone XMPP PubSub Storage v0.2
 
-//    (c) 2012 Yiorgis Gozadinos, Riot AS.
+//    (c) 2012 Yiorgis Gozadinos.
 //    Backbone.xmpp is distributed under the MIT license.
 //    http://github.com/ggozad/Backbone.xmpp
 
@@ -33,70 +33,68 @@
     _.extend(PubSubStorage.prototype, {
 
         // **create** publishes to the node the model in JSON format.
-        //Resolves by setting and returning the `id` of the item.
+        //Resolves by setting the `id` on the item and returning it.
         create: function(model) {
-            var d = $.Deferred(),
-                entry = $build('entry').t(JSON.stringify(model.toJSON())).tree(),
-                p = this.connection.PubSub.publish(this.id, entry);
-            p.done(function (id) {
-                model.id = id;
-                d.resolve(model);
-            }).fail(d.reject);
+            var d = $.Deferred(), res = {},
+                entry = $build('entry').t(JSON.stringify(model.toJSON())).tree();
+            this.connection.PubSub.publish(this.id, entry)
+                .done(function (id) {
+                    res[model.idAttribute] = id;
+                    d.resolve(res);
+                })
+                .fail(d.reject);
             return d.promise();
         },
 
         // **update** a model by re-publishing it on the node.
+        // Resolves with no result as under no circumstances the server will change any attributes.
         update: function(model) {
             var d = $.Deferred(),
-                entry = $build('entry').t(JSON.stringify(model.toJSON())).tree(),
-                p = this.connection.PubSub.publish(this.id, entry, model.id);
-            p.done(function (id) {
-                d.resolve(model);
-            }).fail(d.reject);
+                entry = $build('entry').t(JSON.stringify(model.toJSON())).tree();
+            this.connection.PubSub.publish(this.id, entry, model.id)
+                .done(function () { d.resolve(); })
+                .fail(d.reject);
             return d.promise();
         },
 
         // **getItem** retrieves a model from the node by `id`.
-        // Resolves by returning the attributes that are different and their values.
+        // Resolves by returning the attributes of the model that are different and their values.
         getItem: function(model) {
-            var d = $.Deferred(),
-                p = this.connection.PubSub.items(this.id, {item_ids: [model.id]});
-            p.done(function (item) {
-                var updated = {},
-                    attrs = JSON.parse($('entry', item).text());
-                _.each(attrs, function (value, key) {
-                    if (model.get(key) !== value) updated[key] = value;
-                });
-                d.resolve(updated);
-            }).fail(d.reject);
+            var d = $.Deferred();
+            this.connection.PubSub.items(this.id, {item_ids: [model.id]})
+                .done(function (item) {
+                    var updated = {},
+                        attrs = JSON.parse($('entry', item).text());
+                    _.each(attrs, function (value, key) {
+                        if (model.get(key) !== value) updated[key] = value;
+                    });
+                    d.resolve(updated);
+                })
+                .fail(d.reject);
             return d.promise();
         },
 
-        // **getItems** resolves by returning the array of all models currently published on the node.
+        // **getItems** retrieves all models from the node.
+        // Resolves by returning a list of all its models in JSON format.
         getItems: function(options) {
-            var d = $.Deferred(),
-                p;
-            p = this.connection.PubSub.items(this.id, options);
-            p.done(function (items) {
-                var id, attrs;
-                d.resolve(_.map(items, function (item) {
-                    attrs = JSON.parse($('entry', item).text());
-                    attrs.id = $(item).attr('id');
-                    return attrs;
-                }));
-            }).fail(d.reject);
+            var d = $.Deferred();
+            this.connection.PubSub.items(this.id, options)
+                .done(function (items) {
+                    var id, attrs;
+                    d.resolve(_.map(items, function (item) {
+                        attrs = JSON.parse($('entry', item).text());
+                        attrs.id = $(item).attr('id');
+                        return attrs;
+                    }));
+                })
+                .fail(d.reject);
             return d.promise();
         },
 
         // **destroy** deletes the item correcsponding to the `model` from the node.
-        // Resolves by returning the `model`.
+        // Resolves by returning the `iq` response.
         destroy: function(model) {
-            var d = $.Deferred(),
-                p = this.connection.PubSub.deleteItem(this.id, model.id);
-            p.done(function () {
-                d.resolve(model);
-            }).fail(d.reject);
-            return d.promise();
+            return this.connection.PubSub.deleteItem(this.id, model.id);
         }
 
     });
