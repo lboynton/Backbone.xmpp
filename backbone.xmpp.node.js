@@ -43,10 +43,21 @@
         initialize: function (models, options) {
             options = options || {};
             if (options.id && options.connection) {
-                this.node = new PubSubStorage(options.id, options.connection);
-                options.connection.PubSub.on('xmpp:pubsub:item-published:' + options.id, this.onItemPublished, this);
-                options.connection.PubSub.on('xmpp:pubsub:item-deleted:' + options.id, this.onItemDeleted, this);
+                this.setNode(options.id, options.connection);
+                if (options.payloadFormat) {
+                    this.node.payloadFormat = options.payloadFormat;
+                }
             }
+        },
+		
+        setNode: function(id, connection) {
+            if (this.node) {
+                connection.PubSub.off('xmpp:pubsub:item-published:' + this.node.id, this.onItemPublished, this);
+                connection.PubSub.off('xmpp:pubsub:item-deleted:' + this.node.id, this.onItemDeleted, this);
+            }
+            this.node = new PubSubStorage(id, connection);
+            connection.PubSub.on('xmpp:pubsub:item-published:' + id, this.onItemPublished, this);
+            connection.PubSub.on('xmpp:pubsub:item-deleted:' + id, this.onItemDeleted, this);
         },
 		
         setNode: function(id, connection) {
